@@ -16,7 +16,7 @@ type HandlerFunc func(*Context) error
 
 type Middleware func(HandlerFunc) HandlerFunc
 
-type router struct {
+type Router struct {
 	*http.ServeMux
 	middleware []Middleware
 	logger     *slog.Logger
@@ -24,48 +24,48 @@ type router struct {
 	server     *http.Server
 }
 
-type routerOpt func(*router)
+type routerOpt func(*Router)
 
 func OnPort(port string) routerOpt {
-	return func(r *router) {
+	return func(r *Router) {
 		r.server.Addr = ":" + port
 	}
 }
 
 func WithLogger(logger *slog.Logger) routerOpt {
-	return func(r *router) {
+	return func(r *Router) {
 		r.logger = logger
 	}
 }
 
 func WithLogLevel(level slog.Level) routerOpt {
-	return func(r *router) {
+	return func(r *Router) {
 		r.logger = routerLogger(level)
 	}
 }
 
 func WithServer(server *http.Server) routerOpt {
-	return func(r *router) {
+	return func(r *Router) {
 		r.server = server
 	}
 }
 
 func WithReadTimeout(timeout time.Duration) routerOpt {
-	return func(r *router) {
+	return func(r *Router) {
 		r.server.ReadTimeout = timeout
 	}
 }
 
 func WithWriteTimeout(timeout time.Duration) routerOpt {
-	return func(r *router) {
+	return func(r *Router) {
 		r.server.WriteTimeout = timeout
 	}
 }
 
 // NewRouter create a new router instance with the config loaded from
 // environment variables.
-func NewRouter(opts ...routerOpt) *router {
-	r := &router{
+func NewRouter(opts ...routerOpt) *Router {
+	r := &Router{
 		ServeMux: http.NewServeMux(),
 		server: &http.Server{
 			Addr:           ":8080",
@@ -87,7 +87,7 @@ func routerLogger(level slog.Level) *slog.Logger {
 }
 
 // Start runs the HTTP server and gracefully shuts down on termination signals.
-func (r *router) Start() {
+func (r *Router) Start() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
@@ -114,7 +114,7 @@ func (r *router) Start() {
 }
 
 // Group creates a new router group with prefix and optional middleware.
-func (r *router) Group(group string, middleware ...Middleware) *router {
+func (r *Router) Group(group string, middleware ...Middleware) *Router {
 	groupRouter := *r
 	groupRouter.prefix = strings.TrimRight(r.prefix, "/") + "/" + strings.Trim(group, "/")
 	groupRouter.middleware = slices.Concat(r.middleware, middleware)
@@ -122,13 +122,13 @@ func (r *router) Group(group string, middleware ...Middleware) *router {
 }
 
 // Use adds middleware to the chain.
-func (r *router) Use(middleware ...Middleware) {
+func (r *Router) Use(middleware ...Middleware) {
 	r.middleware = append(r.middleware, middleware...)
 }
 
 // applyMiddleware returns a new handler wrapped with middleware functions.
 // Middleware are applied so they are ran in the same order they are set.
-func (r *router) applyMiddleware(handlerFunc HandlerFunc, middleware ...Middleware) HandlerFunc {
+func (r *Router) applyMiddleware(handlerFunc HandlerFunc, middleware ...Middleware) HandlerFunc {
 	for i := len(r.middleware) - 1; i >= 0; i-- {
 		handlerFunc = r.middleware[i](handlerFunc)
 	}
@@ -141,7 +141,7 @@ func (r *router) applyMiddleware(handlerFunc HandlerFunc, middleware ...Middlewa
 }
 
 // Request registers a new route for an optional method and path with optional middleware.
-func (r *router) Request(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
+func (r *Router) Request(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
 	handlerFunc = r.applyMiddleware(handlerFunc, middleware...)
 
 	method, route, ok := strings.Cut(path, " ")
@@ -191,26 +191,26 @@ func (r *router) Request(path string, handlerFunc HandlerFunc, middleware ...Mid
 }
 
 // Get registers a new get route for a path with optional middleware.
-func (r *router) Get(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
+func (r *Router) Get(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
 	r.Request(http.MethodGet+" "+path, handlerFunc, middleware...)
 }
 
 // Post registers a new post route for a path with optional middleware.
-func (r *router) Post(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
+func (r *Router) Post(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
 	r.Request(http.MethodPost+" "+path, handlerFunc, middleware...)
 }
 
 // Put registers a new put route for a path with optional middleware.
-func (r *router) Put(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
+func (r *Router) Put(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
 	r.Request(http.MethodPut+" "+path, handlerFunc, middleware...)
 }
 
 // Patch registers a new patch route for a path with optional middleware.
-func (r *router) Patch(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
+func (r *Router) Patch(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
 	r.Request(http.MethodPatch+" "+path, handlerFunc, middleware...)
 }
 
 // Delete registers a new delete route for a path with optional middleware.
-func (r *router) Delete(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
+func (r *Router) Delete(path string, handlerFunc HandlerFunc, middleware ...Middleware) {
 	r.Request(http.MethodDelete+" "+path, handlerFunc, middleware...)
 }
